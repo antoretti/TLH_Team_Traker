@@ -34,11 +34,13 @@ button{cursor:pointer;font-family:'DM Sans',sans-serif}
 ::-webkit-scrollbar{width:6px;height:6px}
 ::-webkit-scrollbar-track{background:#f1f1f1}
 ::-webkit-scrollbar-thumb{background:#d1d5db;border-radius:3px}
-.spin{animation:spin 1s linear infinite}
 @keyframes spin{to{transform:rotate(360deg)}}
-.fade-in{animation:fadeIn .25s ease}
 @keyframes fadeIn{from{opacity:0;transform:translateY(5px)}to{opacity:1;transform:translateY(0)}}
+@keyframes progress{from{width:0%}to{width:100%}}
+.fade-in{animation:fadeIn .25s ease}
 .drag-over{outline:2px dashed #7c3aed;outline-offset:2px;border-radius:14px}
+.hub-content a{color:#7c3aed;text-decoration:underline}
+.hub-content strong{font-weight:700}
 </style>
 </head>
 <body>
@@ -57,7 +59,9 @@ const DEFAULT_TEAM=[
   {id:"dr3",name:"Drafter 3",role:"Drafter",color:"#cffafe",border:"#22d3ee",badgeColor:"#0e7490"},
 ];
 
-const MANAGERS=["María","Maria","Oyku"];
+const DRAFTING_ROLES=["Drafter","Drafting Supervisor"];
+const DESIGN_ROLES=["Interior Designer","Interior Design Manager","Purchasing Agent"];
+
 const GREETINGS={
   "María":"¡Hola María! 🌸 Espero que hoy tengas un gran día.",
   "Maria":"¡Hola María! 🌸 Espero que hoy tengas un gran día.",
@@ -77,6 +81,8 @@ const todayStr=()=>new Date().toISOString().split("T")[0];
 const fmtDate=d=>d?new Date(d+"T00:00:00").toLocaleDateString("en-US",{month:"short",day:"numeric",year:"numeric"}):"—";
 const fmtDateTime=ts=>ts?new Date(ts).toLocaleString("en-US",{month:"short",day:"numeric",hour:"numeric",minute:"2-digit"}):"";
 const genId=()=>"m_"+Math.random().toString(36).slice(2,9);
+const orderKey=u=>`tlh_order_${u}`;
+const collapseKey=u=>`tlh_collapsed_${u}`;
 
 const PRI=({p})=>{
   const s=p==="high"?{background:"#fee2e2",color:"#dc2626"}:p==="medium"?{background:"#fef9c3",color:"#a16207"}:{background:"#f3f4f6",color:"#6b7280"};
@@ -90,83 +96,68 @@ const lbl=text=><label style={{fontSize:12,color:"#6b7280",display:"block",margi
 const blankTask=(mid="mgr")=>({memberId:mid,title:"",priority:"medium",dueDate:todayStr(),startDate:"",endDate:""});
 const smInput={border:"1px solid #d1d5db",borderRadius:6,padding:"4px 6px",fontSize:12,outline:"none"};
 
-// ── Login Screen ──────────────────────────────────────────────────
+function RichText({text}){
+  if(!text)return null;
+  const parts=[];
+  const regex=/\*\*(.+?)\*\*|\[(.+?)\]\((https?:\/\/[^\)]+)\)/g;
+  let last=0,m;
+  while((m=regex.exec(text))!==null){
+    if(m.index>last)parts.push(<span key={last}>{text.slice(last,m.index)}</span>);
+    if(m[1])parts.push(<strong key={m.index}>{m[1]}</strong>);
+    else parts.push(<a key={m.index} href={m[3]} target="_blank" rel="noopener noreferrer">{m[2]}</a>);
+    last=m.index+m[0].length;
+  }
+  if(last<text.length)parts.push(<span key={last}>{text.slice(last)}</span>);
+  return <span className="hub-content">{parts}</span>;
+}
+
 function LoginScreen({onLogin}){
   const [greeting,setGreeting]=useState(null);
-  const [pendingUser,setPendingUser]=useState(null);
-
   const handleClick=name=>{
-    if(GREETINGS[name]){
-      setGreeting(GREETINGS[name]);
-      setPendingUser(name);
-      setTimeout(()=>onLogin(name),2800);
-    } else {
-      onLogin(name);
-    }
+    if(GREETINGS[name]){setGreeting(GREETINGS[name]);setTimeout(()=>onLogin(name),2800);}
+    else onLogin(name);
   };
-
-  if(greeting){
-    return(
-      <div style={{minHeight:"100vh",display:"flex",alignItems:"center",justifyContent:"center",background:"linear-gradient(135deg,#667eea 0%,#764ba2 100%)"}}>
-        <div style={{background:"#fff",borderRadius:24,padding:48,width:"100%",maxWidth:420,boxShadow:"0 25px 60px rgba(0,0,0,.2)",textAlign:"center"}} className="fade-in">
-          <div style={{fontSize:56,marginBottom:16}}>🏠</div>
-          <div style={{fontWeight:700,fontSize:20,color:"#1f2937",lineHeight:1.5}}>{greeting}</div>
-          <div style={{marginTop:24,fontSize:13,color:"#9ca3af"}}>Entering tracker…</div>
-          <div style={{marginTop:12,height:4,background:"#f3f4f6",borderRadius:999,overflow:"hidden"}}>
-            <div style={{height:"100%",background:"#7c3aed",borderRadius:999,animation:"progress 2.8s linear forwards"}}/>
-          </div>
-          <style>{`@keyframes progress{from{width:0%}to{width:100%}}`}</style>
+  if(greeting)return(
+    <div style={{minHeight:"100vh",display:"flex",alignItems:"center",justifyContent:"center",background:"linear-gradient(135deg,#667eea 0%,#764ba2 100%)"}}>
+      <div style={{background:"#fff",borderRadius:24,padding:48,width:"100%",maxWidth:420,boxShadow:"0 25px 60px rgba(0,0,0,.2)",textAlign:"center"}} className="fade-in">
+        <div style={{fontSize:56,marginBottom:16}}>🏠</div>
+        <div style={{fontWeight:700,fontSize:20,color:"#1f2937",lineHeight:1.5}}>{greeting}</div>
+        <div style={{marginTop:24,fontSize:13,color:"#9ca3af"}}>Entering tracker…</div>
+        <div style={{marginTop:12,height:4,background:"#f3f4f6",borderRadius:999,overflow:"hidden"}}>
+          <div style={{height:"100%",background:"#7c3aed",borderRadius:999,animation:"progress 2.8s linear forwards"}}/>
         </div>
       </div>
-    );
-  }
-
+    </div>
+  );
   return(
     <div style={{minHeight:"100vh",display:"flex",alignItems:"center",justifyContent:"center",background:"linear-gradient(135deg,#667eea 0%,#764ba2 100%)"}}>
       <div style={{background:"#fff",borderRadius:24,padding:40,width:"100%",maxWidth:400,boxShadow:"0 25px 60px rgba(0,0,0,.2)",textAlign:"center"}} className="fade-in">
         <div style={{fontSize:52,marginBottom:10}}>🏠</div>
         <div style={{fontWeight:800,fontSize:24,color:"#1f2937",marginBottom:4}}>True Legacy Homes</div>
         <div style={{fontSize:13,color:"#6b7280",marginBottom:32}}>Team Task Tracker · Who are you?</div>
-
         <div style={{display:"flex",flexDirection:"column",gap:12}}>
-          {/* María */}
-          <button onClick={()=>handleClick("María")} style={{padding:"16px 20px",borderRadius:14,border:"2px solid #a78bfa",background:"#faf5ff",display:"flex",alignItems:"center",gap:14,textAlign:"left",transition:"all .15s"}}>
+          <button onClick={()=>handleClick("María")} style={{padding:"16px 20px",borderRadius:14,border:"2px solid #a78bfa",background:"#faf5ff",display:"flex",alignItems:"center",gap:14,textAlign:"left"}}>
             <span style={{fontSize:28}}>👑</span>
-            <div>
-              <div style={{fontWeight:700,fontSize:16,color:"#7c3aed"}}>María</div>
-              <div style={{fontSize:12,color:"#9ca3af"}}>Manager · Interior Design</div>
-            </div>
+            <div><div style={{fontWeight:700,fontSize:16,color:"#7c3aed"}}>María</div><div style={{fontSize:12,color:"#9ca3af"}}>Manager · Interior Design</div></div>
           </button>
-
-          {/* Oyku */}
-          <button onClick={()=>handleClick("Oyku")} style={{padding:"16px 20px",borderRadius:14,border:"2px solid #60a5fa",background:"#eff6ff",display:"flex",alignItems:"center",gap:14,textAlign:"left",transition:"all .15s"}}>
+          <button onClick={()=>handleClick("Oyku")} style={{padding:"16px 20px",borderRadius:14,border:"2px solid #60a5fa",background:"#eff6ff",display:"flex",alignItems:"center",gap:14,textAlign:"left"}}>
             <span style={{fontSize:28}}>👑</span>
-            <div>
-              <div style={{fontWeight:700,fontSize:16,color:"#1d4ed8"}}>Oyku</div>
-              <div style={{fontSize:12,color:"#9ca3af"}}>Manager · Drafting Team</div>
-            </div>
+            <div><div style={{fontWeight:700,fontSize:16,color:"#1d4ed8"}}>Oyku</div><div style={{fontSize:12,color:"#9ca3af"}}>Manager · Drafting Team</div></div>
           </button>
-
-          {/* Guest */}
-          <button onClick={()=>handleClick("Guest")} style={{padding:"16px 20px",borderRadius:14,border:"2px solid #e5e7eb",background:"#f9fafb",display:"flex",alignItems:"center",gap:14,textAlign:"left",transition:"all .15s"}}>
+          <button onClick={()=>handleClick("Guest")} style={{padding:"16px 20px",borderRadius:14,border:"2px solid #e5e7eb",background:"#f9fafb",display:"flex",alignItems:"center",gap:14,textAlign:"left"}}>
             <span style={{fontSize:28}}>👤</span>
-            <div>
-              <div style={{fontWeight:700,fontSize:16,color:"#374151"}}>Guest</div>
-              <div style={{fontSize:12,color:"#9ca3af"}}>Team member · View & update tasks</div>
-            </div>
+            <div><div style={{fontWeight:700,fontSize:16,color:"#374151"}}>Guest</div><div style={{fontSize:12,color:"#9ca3af"}}>Team member · View only</div></div>
           </button>
         </div>
-
         <div style={{fontSize:11,color:"#d1d5db",marginTop:20}}>True Legacy Homes · Internal Tool</div>
       </div>
     </div>
   );
 }
 
-// ── Main App ──────────────────────────────────────────────────────
 function App(){
   const [currentUser,setCurrentUser]=useState(()=>localStorage.getItem("tlh_user")||null);
-  const isManager=currentUser&&(currentUser==="María"||currentUser==="Maria"||currentUser==="Oyku");
+  const isManager=currentUser==="María"||currentUser==="Maria"||currentUser==="Oyku";
   const isGuest=currentUser==="Guest";
 
   const [fbReady,setFbReady]=useState(!!window.__firebase);
@@ -178,6 +169,7 @@ function App(){
   const [pendingItems,setPendingItems]=useState([]);
 
   const [view,setView]=useState("board");
+  const [teamFilter,setTeamFilter]=useState("all");
   const [showAdd,setShowAdd]=useState(false);
   const [showTeamEdit,setShowTeamEdit]=useState(false);
   const [showAddMember,setShowAddMember]=useState(false);
@@ -190,15 +182,27 @@ function App(){
   const [editTaskVal,setEditTaskVal]=useState({});
   const [newTask,setNewTask]=useState(blankTask());
   const [saving,setSaving]=useState(false);
-  const [collapsedCols,setCollapsedCols]=useState(()=>{try{return JSON.parse(localStorage.getItem("tlh_collapsed")||"[]");}catch{return[];}});
-  const [colOrder,setColOrder]=useState(()=>{try{return JSON.parse(localStorage.getItem("tlh_order")||"null");}catch{return null;}});
-  const [dragOverId,setDragOverId]=useState(null);
   const [newMember,setNewMember]=useState({name:"",role:"",colorIdx:0,badgeIdx:0});
   const [newAnnouncement,setNewAnnouncement]=useState("");
   const [newPending,setNewPending]=useState("");
   const [showArchive,setShowArchive]=useState(false);
+  const [hubPreview,setHubPreview]=useState(false);
+  const [colOrder,setColOrder]=useState(null);
+  const [collapsedCols,setCollapsedCols]=useState([]);
+  const [dragOverId,setDragOverId]=useState(null);
+  const dragRef=useRef(null);
 
   const handleLogin=name=>{localStorage.setItem("tlh_user",name);setCurrentUser(name);};
+
+  useEffect(()=>{
+    if(!currentUser)return;
+    try{
+      const o=JSON.parse(localStorage.getItem(orderKey(currentUser))||"null");
+      setColOrder(o);
+      const c=JSON.parse(localStorage.getItem(collapseKey(currentUser))||"[]");
+      setCollapsedCols(c);
+    }catch{setColOrder(null);setCollapsedCols([]);}
+  },[currentUser]);
 
   useEffect(()=>{
     if(window.__firebase){setFbReady(true);return;}
@@ -236,30 +240,19 @@ function App(){
     return()=>unsubs.forEach(u=>u());
   },[fbReady]);
 
-  // Sync colOrder with team if not set
   useEffect(()=>{
-    if(!colOrder&&team.length>0){
-      const order=team.map(m=>m.id);
-      setColOrder(order);
-      localStorage.setItem("tlh_order",JSON.stringify(order));
+    if(!colOrder&&team.length>0&&currentUser){
+      const o=team.map(m=>m.id);
+      setColOrder(o);
+      localStorage.setItem(orderKey(currentUser),JSON.stringify(o));
     }
-  },[team]);
+  },[team,currentUser]);
 
-  const orderedTeam=()=>{
-    if(!colOrder)return team;
-    const map=Object.fromEntries(team.map(m=>[m.id,m]));
-    const ordered=colOrder.filter(id=>map[id]).map(id=>map[id]);
-    const extra=team.filter(m=>!colOrder.includes(m.id));
-    return [...ordered,...extra];
-  };
-
-  // ── Firebase helpers ──────────────────────────────────────────
   const fbAdd=async(path,data)=>{const{db,ref,push}=window.__firebase;return push(ref(db,path),data);};
   const fbUpdate=async(path,data)=>{const{db,ref,update}=window.__firebase;return update(ref(db,path),data);};
   const fbRemove=async(path)=>{const{db,ref,remove}=window.__firebase;return remove(ref(db,path));};
   const fbSet=async(path,data)=>{const{db,ref,set}=window.__firebase;return set(ref(db,path),data);};
 
-  // ── Tasks ─────────────────────────────────────────────────────
   const addTask=async()=>{
     if(!newTask.title.trim())return;
     setSaving(true);
@@ -271,43 +264,37 @@ function App(){
   const deleteTask=async(fbId)=>fbRemove(`tasks/${fbId}`);
   const saveNote=async(fbId)=>{await fbUpdate(`tasks/${fbId}`,{note:editNote});setEditNoteId(null);};
   const saveTaskEdit=async()=>{await fbUpdate(`tasks/${editTaskId}`,editTaskVal);setEditTaskId(null);};
-
   const archiveDone=async()=>{
-    const doneTasks=tasks.filter(t=>t.status==="done");
-    for(const t of doneTasks){
+    for(const t of tasks.filter(t=>t.status==="done")){
       await fbAdd("archived",{...t,archivedAt:Date.now()});
       await fbRemove(`tasks/${t.fbId}`);
     }
   };
-
+  const restoreTask=async(task)=>{
+    const{fbId,archivedAt,...rest}=task;
+    await fbAdd("tasks",{...rest,status:"todo"});
+    await fbRemove(`archived/${fbId}`);
+  };
   const runCheckin=async()=>{
     for(const tk of tasks){
-      if((tk.dueDate||tk.date)<checkinDate&&tk.status!=="done"){
+      if((tk.dueDate||tk.date)<checkinDate&&tk.status!=="done")
         await fbUpdate(`tasks/${tk.fbId}`,{status:"overdue"});
-      }
     }
   };
 
-  // ── Team ─────────────────────────────────────────────────────
   const saveTeam=async()=>{await fbSet("team",teamDraft);setShowTeamEdit(false);};
-  const removeMember=async(id)=>{
-    const updated=teamDraft.filter(m=>m.id!==id);
-    setTeamDraft(updated);
-  };
+  const removeMember=id=>setTeamDraft(d=>d.filter(m=>m.id!==id));
   const addMember=async()=>{
     if(!newMember.name.trim()||!newMember.role.trim())return;
     const cc=CARD_COLORS[newMember.colorIdx%CARD_COLORS.length];
     const bc=BADGE_COLORS[newMember.badgeIdx%BADGE_COLORS.length];
-    const member={id:genId(),name:newMember.name.trim(),role:newMember.role.trim(),color:cc.color,border:cc.border,badgeColor:bc};
-    await fbSet("team",[...team,member]);
-    setNewMember({name:"",role:"",colorIdx:0,badgeIdx:0});
-    setShowAddMember(false);
+    await fbSet("team",[...team,{id:genId(),name:newMember.name.trim(),role:newMember.role.trim(),color:cc.color,border:cc.border,badgeColor:bc}]);
+    setNewMember({name:"",role:"",colorIdx:0,badgeIdx:0});setShowAddMember(false);
   };
 
-  // ── Announcements & Pending ──────────────────────────────────
   const addAnnouncement=async()=>{
     if(!newAnnouncement.trim())return;
-    await fbAdd("announcements",{text:newAnnouncement.trim(),author:currentUser,createdAt:Date.now(),done:false});
+    await fbAdd("announcements",{text:newAnnouncement.trim(),author:currentUser,createdAt:Date.now()});
     setNewAnnouncement("");
   };
   const addPending=async()=>{
@@ -319,44 +306,62 @@ function App(){
   const deletePending=async(id)=>fbRemove(`pending/${id}`);
   const deleteAnnouncement=async(id)=>fbRemove(`announcements/${id}`);
 
-  // ── Column collapse & order ──────────────────────────────────
+  const saveOrder=next=>{setColOrder(next);localStorage.setItem(orderKey(currentUser),JSON.stringify(next));};
+  const saveCollapsed=next=>{setCollapsedCols(next);localStorage.setItem(collapseKey(currentUser),JSON.stringify(next));};
+
   const toggleCollapse=id=>{
-    const next=collapsedCols.includes(id)?collapsedCols.filter(x=>x!==id):[...collapsedCols,id];
-    setCollapsedCols(next);localStorage.setItem("tlh_collapsed",JSON.stringify(next));
+    const isCollapsed=collapsedCols.includes(id);
+    if(!isCollapsed){
+      saveCollapsed([...collapsedCols,id]);
+      const cur=colOrder||team.map(m=>m.id);
+      const next=cur.filter(x=>x!==id);next.push(id);
+      saveOrder(next);
+    } else {
+      saveCollapsed(collapsedCols.filter(x=>x!==id));
+    }
   };
-  const dragRef=useRef(null);
+
   const onDragStart=(e,id)=>{dragRef.current=id;};
   const onDragOver=(e,id)=>{e.preventDefault();setDragOverId(id);};
   const onDrop=(e,targetId)=>{
     e.preventDefault();setDragOverId(null);
     if(!dragRef.current||dragRef.current===targetId)return;
-    const current=colOrder||team.map(m=>m.id);
-    const from=current.indexOf(dragRef.current);
-    const to=current.indexOf(targetId);
+    const cur=colOrder||team.map(m=>m.id);
+    const from=cur.indexOf(dragRef.current),to=cur.indexOf(targetId);
     if(from<0||to<0)return;
-    const next=[...current];next.splice(from,1);next.splice(to,0,dragRef.current);
-    setColOrder(next);localStorage.setItem("tlh_order",JSON.stringify(next));
+    const next=[...cur];next.splice(from,1);next.splice(to,0,dragRef.current);
+    saveOrder(next);
   };
 
+  const orderedTeam=()=>{
+    if(!colOrder)return team;
+    const map=Object.fromEntries(team.map(m=>[m.id,m]));
+    return [...colOrder.filter(id=>map[id]).map(id=>map[id]),...team.filter(m=>!colOrder.includes(m.id))];
+  };
+  const filteredByGroup=members=>{
+    if(teamFilter==="drafting")return members.filter(m=>DRAFTING_ROLES.includes(m.role));
+    if(teamFilter==="design")return members.filter(m=>DESIGN_ROLES.includes(m.role));
+    return members;
+  };
+  const displayedTeam=()=>filteredByGroup(filterMember==="all"?orderedTeam():orderedTeam().filter(m=>m.id===filterMember));
   const visibleTasks=mid=>tasks.filter(t=>t.memberId===mid&&(filterMember==="all"||t.memberId===filterMember)).sort((a,b)=>{const p={high:0,medium:1,low:2};return(p[a.priority]-p[b.priority])||((a.dueDate||a.date||"").localeCompare(b.dueDate||b.date||""));});
   const allVisible=filterMember==="all"?tasks:tasks.filter(t=>t.memberId===filterMember);
   const stats={total:allVisible.length,done:allVisible.filter(t=>t.status==="done").length,overdue:allVisible.filter(t=>t.status==="overdue").length};
   const navBtn=(label,v)=><button onClick={()=>setView(v)} style={{padding:"7px 14px",borderRadius:999,fontSize:13,fontWeight:500,border:"none",background:view===v?"#7c3aed":"#f3f4f6",color:view===v?"#fff":"#4b5563"}}>{label}</button>;
+  const groupBtn=(label,val,color)=><button onClick={()=>setTeamFilter(val)} style={{padding:"6px 14px",borderRadius:999,fontSize:12,fontWeight:600,border:`2px solid ${teamFilter===val?color:"#e5e7eb"}`,background:teamFilter===val?color:"#fff",color:teamFilter===val?"#fff":"#6b7280"}}>{label}</button>;
 
   if(!currentUser)return <LoginScreen onLogin={handleLogin}/>;
   if(!fbReady||!connected)return(
     <div style={{minHeight:"100vh",display:"flex",flexDirection:"column",alignItems:"center",justifyContent:"center",background:"#f0f2f7",gap:16}}>
-      <div style={{fontSize:32,animation:"spin 1s linear infinite",display:"inline-block"}}>⚙️</div>
+      <div style={{fontSize:32,display:"inline-block",animation:"spin 1s linear infinite"}}>⚙️</div>
       <div style={{fontWeight:700,fontSize:18,color:"#1f2937"}}>Connecting…</div>
     </div>
   );
 
-  const displayedTeam=filterMember==="all"?orderedTeam():orderedTeam().filter(m=>m.id===filterMember);
-
   return(
     <div style={{minHeight:"100vh",background:"#f0f2f7"}} className="fade-in">
 
-      {/* ── Header ── */}
+      {/* Header */}
       <div style={{background:"#fff",borderBottom:"1px solid #e5e7eb",padding:"12px 20px",display:"flex",flexWrap:"wrap",alignItems:"center",justifyContent:"space-between",gap:10,boxShadow:"0 1px 3px rgba(0,0,0,.06)"}}>
         <div>
           <div style={{display:"flex",alignItems:"center",gap:8}}>
@@ -380,12 +385,18 @@ function App(){
         </div>
       </div>
 
-      {/* ── Stats bar ── */}
-      <div style={{background:"#fff",borderBottom:"1px solid #e5e7eb",padding:"7px 20px",display:"flex",flexWrap:"wrap",gap:14,alignItems:"center"}}>
+      {/* Stats + filters */}
+      <div style={{background:"#fff",borderBottom:"1px solid #e5e7eb",padding:"7px 20px",display:"flex",flexWrap:"wrap",gap:10,alignItems:"center"}}>
         <span style={{fontSize:13,color:"#6b7280"}}>Total: <b style={{color:"#1f2937"}}>{stats.total}</b></span>
         <span style={{fontSize:13,color:"#15803d"}}>Done: <b>{stats.done}</b></span>
         <span style={{fontSize:13,color:"#dc2626"}}>Carried Over: <b>{stats.overdue}</b></span>
-        {isManager&&stats.done>0&&<button onClick={archiveDone} style={{fontSize:12,padding:"3px 12px",borderRadius:999,border:"none",background:"#f3f4f6",color:"#374151",fontWeight:600}}>📦 Archive Done ({stats.done})</button>}        <button onClick={()=>setShowArchive(true)} style={{fontSize:12,padding:"3px 12px",borderRadius:999,border:"none",background:"#f3f4f6",color:"#6b7280"}}>🗂 View Archive ({archivedTasks.length})</button>
+        {isManager&&stats.done>0&&<button onClick={archiveDone} style={{fontSize:12,padding:"3px 12px",borderRadius:999,border:"none",background:"#f3f4f6",color:"#374151",fontWeight:600}}>📦 Archive Done ({stats.done})</button>}
+        <button onClick={()=>setShowArchive(true)} style={{fontSize:12,padding:"3px 12px",borderRadius:999,border:"none",background:"#f3f4f6",color:"#6b7280"}}>🗂 Archive ({archivedTasks.length})</button>
+        <div style={{display:"flex",gap:6}}>
+          {groupBtn("👥 All","all","#7c3aed")}
+          {groupBtn("✏️ Drafting Team","drafting","#be123c")}
+          {groupBtn("🎨 Design Team","design","#1d4ed8")}
+        </div>
         <div style={{marginLeft:"auto",display:"flex",gap:8,alignItems:"center"}}>
           <span style={{fontSize:12,color:"#6b7280"}}>Filter:</span>
           <select value={filterMember} onChange={e=>setFilterMember(e.target.value)} style={{width:"auto",padding:"4px 8px",fontSize:13}}>
@@ -397,36 +408,30 @@ function App(){
 
       <div style={{padding:16}}>
 
-        {/* ══ BOARD ══════════════════════════════════════════════ */}
+        {/* BOARD */}
         {view==="board"&&(
           <>
-            {filterMember==="all"&&<div style={{fontSize:11,color:"#9ca3af",marginBottom:10,textAlign:"right"}}>💡 Drag columns to reorder · Click header to collapse</div>}
+            <div style={{fontSize:11,color:"#9ca3af",marginBottom:10,textAlign:"right"}}>💡 Drag to reorder · Click header to collapse → goes to bottom</div>
             <div style={{display:"flex",flexWrap:"wrap",gap:12,alignItems:"flex-start"}}>
-              {displayedTeam.map(member=>{
+              {displayedTeam().map(member=>{
                 const mt=visibleTasks(member.id);
                 const collapsed=collapsedCols.includes(member.id);
-                const isDragTarget=dragOverId===member.id;
                 return(
                   <div key={member.id}
-                    draggable={filterMember==="all"}
+                    draggable
                     onDragStart={e=>onDragStart(e,member.id)}
                     onDragOver={e=>onDragOver(e,member.id)}
                     onDrop={e=>onDrop(e,member.id)}
                     onDragLeave={()=>setDragOverId(null)}
-                    className={isDragTarget?"drag-over":""}
-                    style={{background:member.color,border:`2px solid ${member.border}`,borderRadius:14,padding:12,display:"flex",flexDirection:"column",gap:8,width:collapsed?"auto":"230px",minWidth:collapsed?"120px":"230px",transition:"width .2s",flexShrink:0}}
+                    className={dragOverId===member.id?"drag-over":""}
+                    style={{background:member.color,border:`2px solid ${member.border}`,borderRadius:14,padding:12,display:"flex",flexDirection:"column",gap:8,width:collapsed?"auto":"280px",minWidth:collapsed?"130px":"280px",transition:"width .2s",flexShrink:0}}
                   >
-                    {/* Column header */}
                     <div style={{display:"flex",alignItems:"center",gap:6,cursor:"pointer"}} onClick={()=>toggleCollapse(member.id)}>
                       <span style={{background:member.badgeColor,color:"#fff",fontSize:10,fontWeight:700,padding:"2px 7px",borderRadius:999,whiteSpace:"nowrap"}}>{member.role.split(" ").map(w=>w[0]).join("")}</span>
-                      {!collapsed&&<div style={{flex:1}}>
-                        <div style={{fontWeight:700,fontSize:13,color:"#1f2937"}}>{member.name}</div>
-                        <div style={{fontSize:10,color:"#6b7280"}}>{member.role}</div>
-                      </div>}
+                      {!collapsed&&<div style={{flex:1}}><div style={{fontWeight:700,fontSize:13,color:"#1f2937"}}>{member.name}</div><div style={{fontSize:10,color:"#6b7280"}}>{member.role}</div></div>}
                       {collapsed&&<div style={{fontWeight:700,fontSize:12,color:"#1f2937",whiteSpace:"nowrap"}}>{member.name}</div>}
                       <span style={{fontSize:11,color:"#9ca3af",marginLeft:"auto"}}>{collapsed?"▶":"▼"}</span>
                     </div>
-
                     {!collapsed&&(
                       <>
                         <div style={{fontSize:11,color:"#6b7280"}}>{mt.filter(t=>t.status!=="done").length} active · {mt.filter(t=>t.status==="done").length} done</div>
@@ -434,7 +439,6 @@ function App(){
                         {mt.map(task=>(
                           <div key={task.fbId} style={{background:"#fff",borderRadius:10,padding:10,boxShadow:"0 1px 3px rgba(0,0,0,.06)",display:"flex",flexDirection:"column",gap:5}} className="fade-in">
                             {editTaskId===task.fbId?(
-                              /* ── Edit form ── */
                               <>
                                 <input value={editTaskVal.title} onChange={e=>setEditTaskVal(v=>({...v,title:e.target.value}))} style={{...smInput,fontWeight:600,width:"100%",marginBottom:3}}/>
                                 <select value={editTaskVal.memberId} onChange={e=>setEditTaskVal(v=>({...v,memberId:e.target.value}))} style={{...smInput,width:"100%",marginBottom:3}}>
@@ -444,18 +448,9 @@ function App(){
                                   <option value="high">🔴 High</option><option value="medium">🟡 Medium</option><option value="low">🟢 Low</option>
                                 </select>
                                 <div style={{display:"grid",gridTemplateColumns:"1fr 1fr 1fr",gap:3}}>
-                                  <div>
-                                    <div style={{fontSize:10,color:"#15803d",marginBottom:2,fontWeight:600}}>Start</div>
-                                    <input type="date" value={editTaskVal.startDate||""} onChange={e=>setEditTaskVal(v=>({...v,startDate:e.target.value}))} style={{...smInput,width:"100%",fontSize:11,padding:"3px 4px"}}/>
-                                  </div>
-                                  <div>
-                                    <div style={{fontSize:10,color:"#a16207",marginBottom:2,fontWeight:600}}>End</div>
-                                    <input type="date" value={editTaskVal.endDate||""} onChange={e=>setEditTaskVal(v=>({...v,endDate:e.target.value}))} style={{...smInput,width:"100%",fontSize:11,padding:"3px 4px"}}/>
-                                  </div>
-                                  <div>
-                                    <div style={{fontSize:10,color:"#dc2626",marginBottom:2,fontWeight:600}}>Due</div>
-                                    <input type="date" value={editTaskVal.dueDate||""} onChange={e=>setEditTaskVal(v=>({...v,dueDate:e.target.value}))} style={{...smInput,width:"100%",fontSize:11,padding:"3px 4px"}}/>
-                                  </div>
+                                  <div><div style={{fontSize:10,color:"#15803d",marginBottom:2,fontWeight:600}}>Start</div><input type="date" value={editTaskVal.startDate||""} onChange={e=>setEditTaskVal(v=>({...v,startDate:e.target.value}))} style={{...smInput,width:"100%",fontSize:11,padding:"3px 4px"}}/></div>
+                                  <div><div style={{fontSize:10,color:"#a16207",marginBottom:2,fontWeight:600}}>End</div><input type="date" value={editTaskVal.endDate||""} onChange={e=>setEditTaskVal(v=>({...v,endDate:e.target.value}))} style={{...smInput,width:"100%",fontSize:11,padding:"3px 4px"}}/></div>
+                                  <div><div style={{fontSize:10,color:"#dc2626",marginBottom:2,fontWeight:600}}>Due</div><input type="date" value={editTaskVal.dueDate||""} onChange={e=>setEditTaskVal(v=>({...v,dueDate:e.target.value}))} style={{...smInput,width:"100%",fontSize:11,padding:"3px 4px"}}/></div>
                                 </div>
                                 <div style={{display:"flex",gap:4,marginTop:2}}>
                                   <button onClick={saveTaskEdit} style={{flex:1,fontSize:12,padding:"5px 0",background:"#7c3aed",color:"#fff",border:"none",borderRadius:6}}>Save</button>
@@ -463,29 +458,19 @@ function App(){
                                 </div>
                               </>
                             ):(
-                              /* ── Task view ── */
                               <>
                                 <div style={{display:"flex",justifyContent:"space-between",gap:4}}>
                                   <span style={{fontSize:13,fontWeight:600,color:task.status==="done"?"#9ca3af":"#1f2937",textDecoration:task.status==="done"?"line-through":"none",flex:1,lineHeight:1.3}}>{task.title}</span>
                                   <div style={{display:"flex",gap:2,flexShrink:0}}>
-                                    {!isGuest&&<button onClick={()=>{setEditTaskId(task.fbId);setEditTaskVal({title:task.title,priority:task.priority,dueDate:task.dueDate||task.date||"",startDate:task.startDate||"",endDate:task.endDate||"",memberId:task.memberId});}} style={{background:"none",border:"none",color:"#d1d5db",fontSize:12,padding:"0 2px"}} title="Edit">✏</button>}
-                                    {isManager&&<button onClick={()=>deleteTask(task.fbId)} style={{background:"none",border:"none",color:"#d1d5db",fontSize:12,padding:"0 2px"}} title="Delete">✕</button>}
+                                    {!isGuest&&<button onClick={()=>{setEditTaskId(task.fbId);setEditTaskVal({title:task.title,priority:task.priority,dueDate:task.dueDate||task.date||"",startDate:task.startDate||"",endDate:task.endDate||"",memberId:task.memberId});}} style={{background:"none",border:"none",color:"#d1d5db",fontSize:12,padding:"0 2px"}}>✏</button>}
+                                    {isManager&&<button onClick={()=>deleteTask(task.fbId)} style={{background:"none",border:"none",color:"#d1d5db",fontSize:12,padding:"0 2px"}}>✕</button>}
                                   </div>
                                 </div>
                                 <PRI p={task.priority}/>
                                 <div style={{display:"grid",gridTemplateColumns:"1fr 1fr 1fr",gap:3}}>
-                                  <div style={{textAlign:"center",background:"#f0fdf4",borderRadius:5,padding:"3px 2px"}}>
-                                    <div style={{fontSize:8,color:"#15803d",fontWeight:700,textTransform:"uppercase"}}>Start</div>
-                                    <div style={{fontSize:9,color:"#374151",fontWeight:600}}>{fmtDate(task.startDate)}</div>
-                                  </div>
-                                  <div style={{textAlign:"center",background:"#fef9c3",borderRadius:5,padding:"3px 2px"}}>
-                                    <div style={{fontSize:8,color:"#a16207",fontWeight:700,textTransform:"uppercase"}}>End</div>
-                                    <div style={{fontSize:9,color:"#374151",fontWeight:600}}>{fmtDate(task.endDate)}</div>
-                                  </div>
-                                  <div style={{textAlign:"center",background:"#fee2e2",borderRadius:5,padding:"3px 2px"}}>
-                                    <div style={{fontSize:8,color:"#dc2626",fontWeight:700,textTransform:"uppercase"}}>Due</div>
-                                    <div style={{fontSize:9,color:"#374151",fontWeight:600}}>{fmtDate(task.dueDate||task.date)}</div>
-                                  </div>
+                                  <div style={{textAlign:"center",background:"#f0fdf4",borderRadius:5,padding:"3px 2px"}}><div style={{fontSize:8,color:"#15803d",fontWeight:700,textTransform:"uppercase"}}>Start</div><div style={{fontSize:9,color:"#374151",fontWeight:600}}>{fmtDate(task.startDate)}</div></div>
+                                  <div style={{textAlign:"center",background:"#fef9c3",borderRadius:5,padding:"3px 2px"}}><div style={{fontSize:8,color:"#a16207",fontWeight:700,textTransform:"uppercase"}}>End</div><div style={{fontSize:9,color:"#374151",fontWeight:600}}>{fmtDate(task.endDate)}</div></div>
+                                  <div style={{textAlign:"center",background:"#fee2e2",borderRadius:5,padding:"3px 2px"}}><div style={{fontSize:8,color:"#dc2626",fontWeight:700,textTransform:"uppercase"}}>Due</div><div style={{fontSize:9,color:"#374151",fontWeight:600}}>{fmtDate(task.dueDate||task.date)}</div></div>
                                 </div>
                                 {task.note&&<p style={{fontSize:11,color:"#6b7280",fontStyle:"italic",margin:0,lineHeight:1.3}}>💬 {task.note}</p>}
                                 {!isGuest&&<div style={{display:"flex",gap:3,flexWrap:"wrap"}}>
@@ -511,9 +496,7 @@ function App(){
                         {!isGuest&&<button onClick={()=>{setNewTask(blankTask(member.id));setShowAdd(true);}} style={{fontSize:12,textAlign:"center",padding:"6px",borderRadius:8,border:"2px dashed #d1d5db",color:"#9ca3af",background:"none",width:"100%"}}>+ Add task</button>}
                       </>
                     )}
-                    {collapsed&&(
-                      <div style={{fontSize:11,color:"#6b7280",textAlign:"center"}}>{mt.filter(t=>t.status!=="done").length} active</div>
-                    )}
+                    {collapsed&&<div style={{fontSize:11,color:"#6b7280",textAlign:"center"}}>{mt.filter(t=>t.status!=="done").length} active</div>}
                   </div>
                 );
               })}
@@ -521,24 +504,28 @@ function App(){
           </>
         )}
 
-        {/* ══ TEAM HUB ══════════════════════════════════════════ */}
+        {/* TEAM HUB */}
         {view==="hub"&&(
           <div style={{maxWidth:760,margin:"0 auto",display:"flex",flexDirection:"column",gap:16}}>
-
-            {/* Announcements */}
             <div style={{background:"#fff",borderRadius:16,border:"1px solid #e5e7eb",overflow:"hidden",boxShadow:"0 1px 4px rgba(0,0,0,.06)"}}>
               <div style={{background:"linear-gradient(135deg,#7c3aed,#a855f7)",padding:"14px 18px",display:"flex",alignItems:"center",gap:8}}>
                 <span style={{fontSize:18}}>📢</span>
-                <div>
-                  <div style={{fontWeight:700,fontSize:15,color:"#fff"}}>Announcements</div>
-                  <div style={{fontSize:11,color:"rgba(255,255,255,.75)"}}>Updates & alerts from managers</div>
-                </div>
+                <div><div style={{fontWeight:700,fontSize:15,color:"#fff"}}>Announcements</div><div style={{fontSize:11,color:"rgba(255,255,255,.75)"}}>Updates & alerts from managers</div></div>
               </div>
               <div style={{padding:16}}>
                 {isManager&&(
-                  <div style={{display:"flex",gap:8,marginBottom:14}}>
-                    <textarea value={newAnnouncement} onChange={e=>setNewAnnouncement(e.target.value)} placeholder="Write an announcement… e.g. I'm fixing the CAD file, be careful" rows={2} style={{flex:1,resize:"vertical",fontSize:13}}/>
-                    <button onClick={addAnnouncement} disabled={!newAnnouncement.trim()} style={{padding:"8px 14px",background:"#7c3aed",color:"#fff",border:"none",borderRadius:10,fontWeight:600,fontSize:13,opacity:newAnnouncement.trim()?1:.4,alignSelf:"flex-end"}}>Post</button>
+                  <div style={{marginBottom:14}}>
+                    <div style={{fontSize:11,color:"#6b7280",marginBottom:6,background:"#f9fafb",padding:"6px 10px",borderRadius:8,lineHeight:1.7}}>
+                      💡 <code style={{background:"#e5e7eb",padding:"1px 4px",borderRadius:3}}>**text**</code> → <strong>bold</strong> &nbsp;·&nbsp; <code style={{background:"#e5e7eb",padding:"1px 4px",borderRadius:3}}>[label](https://url.com)</code> → link
+                    </div>
+                    <div style={{display:"flex",gap:8,marginTop:8}}>
+                      <textarea value={newAnnouncement} onChange={e=>setNewAnnouncement(e.target.value)} placeholder="e.g. **Important:** CAD file updated, please re-download" rows={2} style={{flex:1,resize:"vertical",fontSize:13}}/>
+                      <div style={{display:"flex",flexDirection:"column",gap:4}}>
+                        <button onClick={()=>setHubPreview(!hubPreview)} style={{padding:"6px 10px",background:"#f3f4f6",color:"#374151",border:"none",borderRadius:8,fontSize:12,fontWeight:600}}>{hubPreview?"Edit":"Preview"}</button>
+                        <button onClick={addAnnouncement} disabled={!newAnnouncement.trim()} style={{padding:"6px 10px",background:"#7c3aed",color:"#fff",border:"none",borderRadius:8,fontWeight:600,fontSize:12,opacity:newAnnouncement.trim()?1:.4}}>Post</button>
+                      </div>
+                    </div>
+                    {hubPreview&&newAnnouncement&&<div style={{marginTop:8,padding:"10px 12px",background:"#faf5ff",border:"1px solid #e9d5ff",borderRadius:8,fontSize:13}}><RichText text={newAnnouncement}/></div>}
                   </div>
                 )}
                 {announcements.length===0&&<p style={{fontSize:13,color:"#9ca3af",fontStyle:"italic",textAlign:"center",padding:"12px 0"}}>No announcements yet.</p>}
@@ -546,40 +533,44 @@ function App(){
                   <div key={a.id} style={{background:"#faf5ff",border:"1px solid #e9d5ff",borderRadius:10,padding:"10px 14px",marginBottom:8,display:"flex",gap:10,alignItems:"flex-start"}} className="fade-in">
                     <span style={{fontSize:16,marginTop:1}}>📣</span>
                     <div style={{flex:1}}>
-                      <div style={{fontSize:13,color:"#1f2937",lineHeight:1.4}}>{a.text}</div>
+                      <div style={{fontSize:13,color:"#1f2937",lineHeight:1.5}}><RichText text={a.text}/></div>
                       <div style={{fontSize:11,color:"#9ca3af",marginTop:4}}>By <b>{a.author}</b> · {fmtDateTime(a.createdAt)}</div>
                     </div>
-                    {isManager&&<button onClick={()=>deleteAnnouncement(a.id)} style={{background:"none",border:"none",color:"#d1d5db",fontSize:14,padding:"0 4px"}} title="Delete">✕</button>}
+                    {isManager&&<button onClick={()=>deleteAnnouncement(a.id)} style={{background:"none",border:"none",color:"#d1d5db",fontSize:14,padding:"0 4px"}}>✕</button>}
                   </div>
                 ))}
               </div>
             </div>
 
-            {/* Pending Items */}
             <div style={{background:"#fff",borderRadius:16,border:"1px solid #e5e7eb",overflow:"hidden",boxShadow:"0 1px 4px rgba(0,0,0,.06)"}}>
               <div style={{background:"linear-gradient(135deg,#f59e0b,#f97316)",padding:"14px 18px",display:"flex",alignItems:"center",gap:8}}>
                 <span style={{fontSize:18}}>📋</span>
-                <div>
-                  <div style={{fontWeight:700,fontSize:15,color:"#fff"}}>Team Pending Items</div>
-                  <div style={{fontSize:11,color:"rgba(255,255,255,.75)"}}>Things we still need to do or get</div>
-                </div>
+                <div><div style={{fontWeight:700,fontSize:15,color:"#fff"}}>Team Pending Items</div><div style={{fontSize:11,color:"rgba(255,255,255,.75)"}}>Things we still need to do or get</div></div>
               </div>
               <div style={{padding:16}}>
                 {isManager&&(
-                  <div style={{display:"flex",gap:8,marginBottom:14}}>
-                    <input value={newPending} onChange={e=>setNewPending(e.target.value)} onKeyDown={e=>e.key==="Enter"&&addPending()} placeholder='e.g. Missing iGuide for 123 Main St · Update CAD file for project X' style={{flex:1,fontSize:13}}/>
-                    <button onClick={addPending} disabled={!newPending.trim()} style={{padding:"8px 14px",background:"#f59e0b",color:"#fff",border:"none",borderRadius:10,fontWeight:600,fontSize:13,opacity:newPending.trim()?1:.4,whiteSpace:"nowrap"}}>Add</button>
+                  <div style={{marginBottom:14}}>
+                    <div style={{fontSize:11,color:"#6b7280",marginBottom:6,background:"#f9fafb",padding:"6px 10px",borderRadius:8}}>
+                      💡 <code style={{background:"#e5e7eb",padding:"1px 4px",borderRadius:3}}>**text**</code> → <strong>bold</strong> &nbsp;·&nbsp; <code style={{background:"#e5e7eb",padding:"1px 4px",borderRadius:3}}>[label](url)</code> → link
+                    </div>
+                    <div style={{display:"flex",gap:8}}>
+                      <input value={newPending} onChange={e=>setNewPending(e.target.value)} onKeyDown={e=>e.key==="Enter"&&addPending()} placeholder='e.g. **Missing** iGuide for 123 Main St' style={{flex:1,fontSize:13}}/>
+                      <button onClick={addPending} disabled={!newPending.trim()} style={{padding:"8px 14px",background:"#f59e0b",color:"#fff",border:"none",borderRadius:10,fontWeight:600,fontSize:13,opacity:newPending.trim()?1:.4,whiteSpace:"nowrap"}}>Add</button>
+                    </div>
                   </div>
                 )}
                 {pendingItems.length===0&&<p style={{fontSize:13,color:"#9ca3af",fontStyle:"italic",textAlign:"center",padding:"12px 0"}}>No pending items.</p>}
                 {pendingItems.map(item=>(
                   <div key={item.id} style={{display:"flex",gap:10,alignItems:"center",padding:"8px 10px",borderRadius:10,background:item.done?"#f9fafb":"#fffbeb",border:`1px solid ${item.done?"#e5e7eb":"#fde68a"}`,marginBottom:6}} className="fade-in">
-                    <button onClick={()=>togglePending(item.id,item.done)} style={{width:18,height:18,borderRadius:999,border:`2px solid ${item.done?"#22c55e":"#f59e0b"}`,background:item.done?"#22c55e":"transparent",display:"flex",alignItems:"center",justifyContent:"center",flexShrink:0,padding:0}}>
-                      {item.done&&<span style={{color:"#fff",fontSize:11,lineHeight:1}}>✓</span>}
-                    </button>
-                    <span style={{flex:1,fontSize:13,color:item.done?"#9ca3af":"#1f2937",textDecoration:item.done?"line-through":"none",lineHeight:1.4}}>{item.text}</span>
-                    <span style={{fontSize:10,color:"#9ca3af",whiteSpace:"nowrap"}}>{a=>{}}by {item.author}</span>
-                    {isManager&&<button onClick={()=>deletePending(item.id)} style={{background:"none",border:"none",color:"#d1d5db",fontSize:13,padding:"0 2px"}} title="Delete">✕</button>}
+                    {isManager
+                      ?<button onClick={()=>togglePending(item.id,item.done)} style={{width:18,height:18,borderRadius:999,border:`2px solid ${item.done?"#22c55e":"#f59e0b"}`,background:item.done?"#22c55e":"transparent",display:"flex",alignItems:"center",justifyContent:"center",flexShrink:0,padding:0}}>
+                        {item.done&&<span style={{color:"#fff",fontSize:11,lineHeight:1}}>✓</span>}
+                       </button>
+                      :<span style={{width:18,height:18,borderRadius:999,border:`2px solid ${item.done?"#22c55e":"#f59e0b"}`,background:item.done?"#22c55e":"transparent",display:"inline-flex",alignItems:"center",justifyContent:"center",flexShrink:0,fontSize:11,color:"#fff"}}>{item.done?"✓":""}</span>
+                    }
+                    <span style={{flex:1,fontSize:13,color:item.done?"#9ca3af":"#1f2937",textDecoration:item.done?"line-through":"none",lineHeight:1.5}}><RichText text={item.text}/></span>
+                    <span style={{fontSize:10,color:"#9ca3af",whiteSpace:"nowrap"}}>by {item.author}</span>
+                    {isManager&&<button onClick={()=>deletePending(item.id)} style={{background:"none",border:"none",color:"#d1d5db",fontSize:13,padding:"0 2px"}}>✕</button>}
                   </div>
                 ))}
               </div>
@@ -587,15 +578,16 @@ function App(){
           </div>
         )}
 
-        {/* ══ CHECK-IN ═══════════════════════════════════════════ */}
+        {/* CHECK-IN */}
         {view==="checkin"&&(
           <div style={{maxWidth:720,margin:"0 auto"}}>
-            <div style={{background:"#fff",borderRadius:14,border:"1px solid #e5e7eb",padding:20,marginBottom:14,boxShadow:"0 1px 3px rgba(0,0,0,.06)"}}>
+            <div style={{background:"#fff",borderRadius:14,border:"1px solid #e5e7eb",padding:20,marginBottom:14}}>
               <div style={{fontWeight:700,fontSize:17,marginBottom:4}}>✅ Daily Check-In</div>
               <div style={{fontSize:13,color:"#6b7280",marginBottom:14}}>Incomplete tasks past their due date will be flagged as Carried Over.</div>
               <div style={{display:"flex",gap:10,flexWrap:"wrap",alignItems:"flex-end"}}>
                 <div>{lbl("Check-in Date")}<input type="date" value={checkinDate} onChange={e=>setCheckinDate(e.target.value)} style={{width:"auto"}}/></div>
-                {isManager&&<button onClick={runCheckin} style={{padding:"8px 20px",borderRadius:8,fontSize:13,fontWeight:600,border:"none",background:"#7c3aed",color:"#fff"}}>Run Check-In</button>}              </div>
+                {isManager&&<button onClick={runCheckin} style={{padding:"8px 20px",borderRadius:8,fontSize:13,fontWeight:600,border:"none",background:"#7c3aed",color:"#fff"}}>Run Check-In</button>}
+              </div>
             </div>
             {team.map(member=>{
               const mTasks=tasks.filter(t=>t.memberId===member.id);
@@ -605,12 +597,7 @@ function App(){
                   <div style={{fontWeight:600,color:"#374151",marginBottom:8}}>{member.name} <span style={{fontSize:12,fontWeight:400,color:"#9ca3af"}}>· {member.role}</span></div>
                   {mTasks.map(task=>(
                     <div key={task.fbId} style={{display:"flex",alignItems:"center",gap:8,padding:"8px 10px",borderRadius:8,background:"#f9fafb",border:"1px solid #e5e7eb",marginBottom:6,flexWrap:"wrap"}}>
-                      {!isGuest
-                        ? <select value={task.status} onChange={e=>updateStatus(task.fbId,e.target.value)} style={{width:"auto",fontSize:12}}>
-                            {Object.entries(STATUS).map(([k,v])=><option key={k} value={k}>{STATUS_ICONS[k]} {v}</option>)}
-                          </select>
-                        : <StatBadge s={task.status}/>
-                      }
+                      {!isGuest?<select value={task.status} onChange={e=>updateStatus(task.fbId,e.target.value)} style={{width:"auto",fontSize:12}}>{Object.entries(STATUS).map(([k,v])=><option key={k} value={k}>{STATUS_ICONS[k]} {v}</option>)}</select>:<StatBadge s={task.status}/>}
                       <span style={{flex:1,fontSize:13,color:task.status==="done"?"#9ca3af":"#374151",textDecoration:task.status==="done"?"line-through":"none"}}>{task.title}</span>
                       <span style={{fontSize:11,color:"#15803d"}}>▶ {fmtDate(task.startDate)}</span>
                       <span style={{fontSize:11,color:"#a16207"}}>⏹ {fmtDate(task.endDate)}</span>
@@ -624,24 +611,17 @@ function App(){
           </div>
         )}
 
-        {/* ══ HISTORY ════════════════════════════════════════════ */}
+        {/* HISTORY */}
         {view==="history"&&(
           <div style={{maxWidth:1000,margin:"0 auto",background:"#fff",borderRadius:14,border:"1px solid #e5e7eb",overflow:"auto"}}>
             <table style={{width:"100%",borderCollapse:"collapse",fontSize:13}}>
-              <thead>
-                <tr style={{background:"#f9fafb",borderBottom:"1px solid #e5e7eb"}}>
-                  {["Task","Assigned To","Start","End","Due","Status","Priority"].map(h=><th key={h} style={{padding:"10px 12px",textAlign:"left",color:"#374151",fontWeight:600,whiteSpace:"nowrap"}}>{h}</th>)}
-                </tr>
-              </thead>
+              <thead><tr style={{background:"#f9fafb",borderBottom:"1px solid #e5e7eb"}}>{["Task","Assigned To","Start","End","Due","Status","Priority"].map(h=><th key={h} style={{padding:"10px 12px",textAlign:"left",color:"#374151",fontWeight:600,whiteSpace:"nowrap"}}>{h}</th>)}</tr></thead>
               <tbody>
                 {[...tasks].sort((a,b)=>(b.dueDate||b.date||"").localeCompare(a.dueDate||a.date||"")).map((task,i)=>{
                   const m=team.find(x=>x.id===task.memberId);
                   return(
                     <tr key={task.fbId} style={{borderBottom:"1px solid #f3f4f6",background:i%2===0?"#fff":"#fafafa"}}>
-                      <td style={{padding:"9px 12px"}}>
-                        <div style={{color:task.status==="done"?"#9ca3af":"#1f2937",textDecoration:task.status==="done"?"line-through":"none"}}>{task.title}</div>
-                        {task.note&&<div style={{fontSize:11,color:"#9ca3af",fontStyle:"italic"}}>💬 {task.note}</div>}
-                      </td>
+                      <td style={{padding:"9px 12px"}}><div style={{color:task.status==="done"?"#9ca3af":"#1f2937",textDecoration:task.status==="done"?"line-through":"none"}}>{task.title}</div>{task.note&&<div style={{fontSize:11,color:"#9ca3af",fontStyle:"italic"}}>💬 {task.note}</div>}</td>
                       <td style={{padding:"9px 12px"}}><span style={{background:m?.badgeColor,color:"#fff",fontSize:11,padding:"2px 8px",borderRadius:999,fontWeight:600,whiteSpace:"nowrap"}}>{m?.name}</span></td>
                       <td style={{padding:"9px 12px",color:"#15803d",fontSize:12,whiteSpace:"nowrap"}}>{fmtDate(task.startDate)}</td>
                       <td style={{padding:"9px 12px",color:"#a16207",fontSize:12,whiteSpace:"nowrap"}}>{fmtDate(task.endDate)}</td>
@@ -658,21 +638,17 @@ function App(){
         )}
       </div>
 
-      {/* ══ ARCHIVE MODAL ══════════════════════════════════════ */}
+      {/* ARCHIVE MODAL */}
       {showArchive&&(
         <div style={{position:"fixed",inset:0,background:"rgba(0,0,0,.4)",display:"flex",alignItems:"center",justifyContent:"center",zIndex:50,padding:16}}>
-          <div style={{background:"#fff",borderRadius:20,padding:24,width:"100%",maxWidth:700,maxHeight:"85vh",overflowY:"auto",boxShadow:"0 20px 60px rgba(0,0,0,.2)"}}>
+          <div style={{background:"#fff",borderRadius:20,padding:24,width:"100%",maxWidth:720,maxHeight:"85vh",overflowY:"auto",boxShadow:"0 20px 60px rgba(0,0,0,.2)"}}>
             <div style={{display:"flex",justifyContent:"space-between",alignItems:"center",marginBottom:14}}>
               <div style={{fontWeight:700,fontSize:17,color:"#1f2937"}}>🗂 Archived Tasks ({archivedTasks.length})</div>
               <button onClick={()=>setShowArchive(false)} style={{background:"#f3f4f6",border:"none",borderRadius:8,padding:"6px 12px",fontWeight:600,fontSize:13}}>Close</button>
             </div>
             {archivedTasks.length===0&&<p style={{textAlign:"center",color:"#9ca3af",padding:30}}>No archived tasks yet.</p>}
             <table style={{width:"100%",borderCollapse:"collapse",fontSize:13}}>
-              <thead>
-                <tr style={{background:"#f9fafb",borderBottom:"1px solid #e5e7eb"}}>
-                  {["Task","Assigned To","Due","Archived On"].map(h=><th key={h} style={{padding:"8px 10px",textAlign:"left",color:"#374151",fontWeight:600}}>{h}</th>)}
-                </tr>
-              </thead>
+              <thead><tr style={{background:"#f9fafb",borderBottom:"1px solid #e5e7eb"}}>{["Task","Assigned To","Due","Archived On",""].map((h,i)=><th key={i} style={{padding:"8px 10px",textAlign:"left",color:"#374151",fontWeight:600}}>{h}</th>)}</tr></thead>
               <tbody>
                 {[...archivedTasks].sort((a,b)=>(b.archivedAt||0)-(a.archivedAt||0)).map((task,i)=>{
                   const m=team.find(x=>x.id===task.memberId);
@@ -682,6 +658,7 @@ function App(){
                       <td style={{padding:"8px 10px"}}><span style={{background:m?.badgeColor||"#6b7280",color:"#fff",fontSize:11,padding:"2px 7px",borderRadius:999,fontWeight:600}}>{m?.name||"?"}</span></td>
                       <td style={{padding:"8px 10px",color:"#dc2626",fontSize:12}}>{fmtDate(task.dueDate||task.date)}</td>
                       <td style={{padding:"8px 10px",color:"#9ca3af",fontSize:12}}>{fmtDateTime(task.archivedAt)}</td>
+                      <td style={{padding:"8px 10px"}}>{isManager&&<button onClick={()=>restoreTask(task)} style={{fontSize:11,padding:"4px 10px",borderRadius:6,border:"none",background:"#dcfce7",color:"#15803d",fontWeight:600}}>↩ Restore to To Do</button>}</td>
                     </tr>
                   );
                 })}
@@ -691,21 +668,14 @@ function App(){
         </div>
       )}
 
-      {/* ══ ASSIGN MODAL ═══════════════════════════════════════ */}
+      {/* ASSIGN MODAL */}
       {showAdd&&(
         <div style={{position:"fixed",inset:0,background:"rgba(0,0,0,.4)",display:"flex",alignItems:"center",justifyContent:"center",zIndex:50,padding:16}}>
           <div style={{background:"#fff",borderRadius:20,padding:24,width:"100%",maxWidth:460,maxHeight:"90vh",overflowY:"auto",boxShadow:"0 20px 60px rgba(0,0,0,.2)"}}>
             <div style={{fontWeight:700,fontSize:17,color:"#1f2937",marginBottom:14}}>Assign Task</div>
-            {lbl("Assign To")}
-            <select value={newTask.memberId} onChange={e=>setNewTask(n=>({...n,memberId:e.target.value}))} style={{marginBottom:10}}>
-              {team.map(m=><option key={m.id} value={m.id}>{m.name} – {m.role}</option>)}
-            </select>
-            {lbl("Task Description")}
-            <input value={newTask.title} onChange={e=>setNewTask(n=>({...n,title:e.target.value}))} onKeyDown={e=>e.key==="Enter"&&addTask()} placeholder="Describe the task…" style={{marginBottom:10}}/>
-            {lbl("Priority")}
-            <select value={newTask.priority} onChange={e=>setNewTask(n=>({...n,priority:e.target.value}))} style={{marginBottom:10}}>
-              <option value="high">🔴 High</option><option value="medium">🟡 Medium</option><option value="low">🟢 Low</option>
-            </select>
+            {lbl("Assign To")}<select value={newTask.memberId} onChange={e=>setNewTask(n=>({...n,memberId:e.target.value}))} style={{marginBottom:10}}>{team.map(m=><option key={m.id} value={m.id}>{m.name} – {m.role}</option>)}</select>
+            {lbl("Task Description")}<input value={newTask.title} onChange={e=>setNewTask(n=>({...n,title:e.target.value}))} onKeyDown={e=>e.key==="Enter"&&addTask()} placeholder="Describe the task…" style={{marginBottom:10}}/>
+            {lbl("Priority")}<select value={newTask.priority} onChange={e=>setNewTask(n=>({...n,priority:e.target.value}))} style={{marginBottom:10}}><option value="high">🔴 High</option><option value="medium">🟡 Medium</option><option value="low">🟢 Low</option></select>
             <div style={{display:"grid",gridTemplateColumns:"1fr 1fr 1fr",gap:10,marginBottom:10}}>
               <div>{lbl("📅 Start")}<input type="date" value={newTask.startDate} onChange={e=>setNewTask(n=>({...n,startDate:e.target.value}))}/></div>
               <div>{lbl("📅 End")}<input type="date" value={newTask.endDate} onChange={e=>setNewTask(n=>({...n,endDate:e.target.value}))}/></div>
@@ -719,7 +689,7 @@ function App(){
         </div>
       )}
 
-      {/* ══ TEAM EDIT MODAL ════════════════════════════════════ */}
+      {/* TEAM EDIT MODAL */}
       {showTeamEdit&&(
         <div style={{position:"fixed",inset:0,background:"rgba(0,0,0,.4)",display:"flex",alignItems:"center",justifyContent:"center",zIndex:50,padding:16}}>
           <div style={{background:"#fff",borderRadius:20,padding:24,width:"100%",maxWidth:520,maxHeight:"90vh",overflowY:"auto",boxShadow:"0 20px 60px rgba(0,0,0,.2)"}}>
@@ -745,27 +715,17 @@ function App(){
         </div>
       )}
 
-      {/* ══ ADD MEMBER MODAL ═══════════════════════════════════ */}
+      {/* ADD MEMBER MODAL */}
       {showAddMember&&(
         <div style={{position:"fixed",inset:0,background:"rgba(0,0,0,.5)",display:"flex",alignItems:"center",justifyContent:"center",zIndex:60,padding:16}}>
           <div style={{background:"#fff",borderRadius:20,padding:24,width:"100%",maxWidth:420,boxShadow:"0 20px 60px rgba(0,0,0,.2)"}}>
             <div style={{fontWeight:700,fontSize:16,marginBottom:14}}>➕ Add New Member</div>
-            {lbl("Name")}
-            <input value={newMember.name} onChange={e=>setNewMember(n=>({...n,name:e.target.value}))} placeholder="Full name" style={{marginBottom:10}}/>
-            {lbl("Role")}
-            <input value={newMember.role} onChange={e=>setNewMember(n=>({...n,role:e.target.value}))} placeholder="e.g. Drafter, Designer…" style={{marginBottom:10}}/>
+            {lbl("Name")}<input value={newMember.name} onChange={e=>setNewMember(n=>({...n,name:e.target.value}))} placeholder="Full name" style={{marginBottom:10}}/>
+            {lbl("Role")}<input value={newMember.role} onChange={e=>setNewMember(n=>({...n,role:e.target.value}))} placeholder="e.g. Drafter, Designer…" style={{marginBottom:10}}/>
             {lbl("Card Color")}
-            <div style={{display:"flex",gap:6,flexWrap:"wrap",marginBottom:10}}>
-              {CARD_COLORS.map((cc,idx)=>(
-                <div key={idx} onClick={()=>setNewMember(n=>({...n,colorIdx:idx}))} style={{width:28,height:28,borderRadius:999,background:cc.color,border:`3px solid ${newMember.colorIdx===idx?cc.border:"transparent"}`,cursor:"pointer"}}/>
-              ))}
-            </div>
+            <div style={{display:"flex",gap:6,flexWrap:"wrap",marginBottom:10}}>{CARD_COLORS.map((cc,idx)=><div key={idx} onClick={()=>setNewMember(n=>({...n,colorIdx:idx}))} style={{width:28,height:28,borderRadius:999,background:cc.color,border:`3px solid ${newMember.colorIdx===idx?cc.border:"transparent"}`,cursor:"pointer"}}/>)}</div>
             {lbl("Badge Color")}
-            <div style={{display:"flex",gap:6,flexWrap:"wrap",marginBottom:14}}>
-              {BADGE_COLORS.map((bc,idx)=>(
-                <div key={idx} onClick={()=>setNewMember(n=>({...n,badgeIdx:idx}))} style={{width:28,height:28,borderRadius:999,background:bc,border:`3px solid ${newMember.badgeIdx===idx?"#1f2937":"transparent"}`,cursor:"pointer"}}/>
-              ))}
-            </div>
+            <div style={{display:"flex",gap:6,flexWrap:"wrap",marginBottom:14}}>{BADGE_COLORS.map((bc,idx)=><div key={idx} onClick={()=>setNewMember(n=>({...n,badgeIdx:idx}))} style={{width:28,height:28,borderRadius:999,background:bc,border:`3px solid ${newMember.badgeIdx===idx?"#1f2937":"transparent"}`,cursor:"pointer"}}/>)}</div>
             <div style={{display:"flex",gap:8}}>
               <button onClick={addMember} disabled={!newMember.name.trim()||!newMember.role.trim()} style={{flex:1,padding:"10px 0",background:"#7c3aed",color:"#fff",border:"none",borderRadius:10,fontWeight:600,opacity:newMember.name.trim()&&newMember.role.trim()?1:.4}}>Add Member</button>
               <button onClick={()=>setShowAddMember(false)} style={{flex:1,padding:"10px 0",background:"#f3f4f6",color:"#4b5563",border:"none",borderRadius:10,fontWeight:600}}>Cancel</button>
