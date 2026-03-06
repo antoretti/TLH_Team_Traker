@@ -138,11 +138,11 @@ function LoginScreen({onLogin}){
         <div style={{display:"flex",flexDirection:"column",gap:12}}>
           <button onClick={()=>handleClick("María")} style={{padding:"16px 20px",borderRadius:14,border:"2px solid #a78bfa",background:"#faf5ff",display:"flex",alignItems:"center",gap:14,textAlign:"left"}}>
             <span style={{fontSize:28}}>👑</span>
-            <div><div style={{fontWeight:700,fontSize:16,color:"#7c3aed"}}>María</div><div style={{fontSize:12,color:"#9ca3af"}}>Manager · Interior Design</div></div>
+            <div><div style={{fontWeight:700,fontSize:16,color:"#7c3aed"}}>María</div><div style={{fontSize:12,color:"#9ca3af"}}>Drafting Team & Permits Supervisor</div></div>
           </button>
           <button onClick={()=>handleClick("Oyku")} style={{padding:"16px 20px",borderRadius:14,border:"2px solid #60a5fa",background:"#eff6ff",display:"flex",alignItems:"center",gap:14,textAlign:"left"}}>
             <span style={{fontSize:28}}>👑</span>
-            <div><div style={{fontWeight:700,fontSize:16,color:"#1d4ed8"}}>Oyku</div><div style={{fontSize:12,color:"#9ca3af"}}>Manager · Drafting Team</div></div>
+            <div><div style={{fontWeight:700,fontSize:16,color:"#1d4ed8"}}>Oyku</div><div style={{fontSize:12,color:"#9ca3af"}}>Interior Design Manager</div></div>
           </button>
           <button onClick={()=>handleClick("Guest")} style={{padding:"16px 20px",borderRadius:14,border:"2px solid #e5e7eb",background:"#f9fafb",display:"flex",alignItems:"center",gap:14,textAlign:"left"}}>
             <span style={{fontSize:28}}>👤</span>
@@ -242,7 +242,20 @@ function App(){
 
   useEffect(()=>{
     if(!colOrder&&team.length>0&&currentUser){
-      const o=team.map(m=>m.id);
+      let o;
+      if(currentUser==="María"||currentUser==="Maria"){
+        // Drafting first: Supervisor + Drafters, then the rest
+        const drafting=team.filter(m=>DRAFTING_ROLES.includes(m.role)).map(m=>m.id);
+        const others=team.filter(m=>!DRAFTING_ROLES.includes(m.role)).map(m=>m.id);
+        o=[...drafting,...others];
+      } else if(currentUser==="Oyku"){
+        // Design first: Manager + Designers + Purchasing, then the rest
+        const design=team.filter(m=>DESIGN_ROLES.includes(m.role)).map(m=>m.id);
+        const others=team.filter(m=>!DESIGN_ROLES.includes(m.role)).map(m=>m.id);
+        o=[...design,...others];
+      } else {
+        o=team.map(m=>m.id);
+      }
       setColOrder(o);
       localStorage.setItem(orderKey(currentUser),JSON.stringify(o));
     }
@@ -371,7 +384,8 @@ function App(){
           </div>
           <div style={{fontSize:11,color:"#6b7280",marginTop:1}}>
             Hi <b>{currentUser}</b>{isManager?" 👑":""} · {fmtDate(todayStr())}
-            {isManager&&<span style={{marginLeft:8,color:"#7c3aed",fontWeight:600}}>Manager Access</span>}
+            {currentUser==="María"&&<span style={{marginLeft:8,color:"#7c3aed",fontWeight:600}}>Drafting Team & Permits Supervisor</span>}
+            {currentUser==="Oyku"&&<span style={{marginLeft:8,color:"#1d4ed8",fontWeight:600}}>Interior Design Manager</span>}
           </div>
         </div>
         <div style={{display:"flex",gap:6,flexWrap:"wrap",alignItems:"center"}}>
@@ -381,6 +395,8 @@ function App(){
           {navBtn("📅 History","history")}
           {!isGuest&&<button onClick={()=>setShowAdd(true)} style={{padding:"7px 14px",borderRadius:999,fontSize:13,fontWeight:500,border:"none",background:"#22c55e",color:"#fff"}}>+ Task</button>}
           {isManager&&<button onClick={()=>{setTeamDraft(team.map(m=>({...m})));setShowTeamEdit(true);}} style={{padding:"7px 14px",borderRadius:999,fontSize:13,fontWeight:500,border:"none",background:"#0ea5e9",color:"#fff"}}>👤 Team</button>}
+          <a href="https://truelegacyhomes.knack.com/projects/#plan-priority-list/" target="_blank" rel="noopener noreferrer" style={{padding:"7px 14px",borderRadius:999,fontSize:13,fontWeight:500,border:"none",background:"#f59e0b",color:"#fff",textDecoration:"none",display:"inline-flex",alignItems:"center",gap:5}}>🔗 Knack</a>
+          {isManager&&<button onClick={()=>{localStorage.removeItem(orderKey(currentUser));localStorage.removeItem(collapseKey(currentUser));setColOrder(null);setCollapsedCols([]);}} style={{padding:"7px 14px",borderRadius:999,fontSize:13,fontWeight:500,border:"1px solid #e5e7eb",background:"#fff",color:"#9ca3af"}} title="Reset column order to default">↺ Reset Order</button>}
           <button onClick={()=>{localStorage.removeItem("tlh_user");setCurrentUser(null);}} style={{padding:"7px 14px",borderRadius:999,fontSize:13,fontWeight:500,border:"1px solid #e5e7eb",background:"#fff",color:"#6b7280"}}>Exit</button>
         </div>
       </div>
