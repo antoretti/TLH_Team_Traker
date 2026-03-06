@@ -1,0 +1,341 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8"/>
+<meta name="viewport" content="width=device-width,initial-scale=1"/>
+<title>True Legacy Homes – Task Tracker</title>
+<script src="https://cdnjs.cloudflare.com/ajax/libs/react/18.2.0/umd/react.production.min.js"></script>
+<script src="https://cdnjs.cloudflare.com/ajax/libs/react-dom/18.2.0/umd/react-dom.production.min.js"></script>
+<script src="https://cdnjs.cloudflare.com/ajax/libs/babel-standalone/7.23.2/babel.min.js"></script>
+<style>
+*{box-sizing:border-box;margin:0;padding:0;font-family:-apple-system,BlinkMacSystemFont,'Segoe UI',sans-serif}
+body{background:#f8f9fa;min-height:100vh}
+input,select{border:1px solid #d1d5db;border-radius:8px;padding:8px 10px;font-size:13px;outline:none;width:100%}
+input:focus,select:focus{border-color:#7c3aed;box-shadow:0 0 0 3px rgba(124,58,237,.1)}
+button{cursor:pointer;font-family:inherit}
+</style>
+</head>
+<body>
+<div id="root"></div>
+<script type="text/babel">
+const {useState}=React;
+
+const DEFAULT_TEAM=[
+  {id:"mgr",name:"You (Manager)",      role:"Interior Design Manager", color:"#ede9fe",border:"#a78bfa",badgeColor:"#7c3aed"},
+  {id:"id1",name:"Designer 1",         role:"Interior Designer",       color:"#dbeafe",border:"#60a5fa",badgeColor:"#1d4ed8"},
+  {id:"id2",name:"Designer 2",         role:"Interior Designer",       color:"#ccfbf1",border:"#2dd4bf",badgeColor:"#0f766e"},
+  {id:"pa", name:"Purchasing Agent",   role:"Purchasing Agent",        color:"#fef3c7",border:"#fbbf24",badgeColor:"#92400e"},
+  {id:"ds", name:"Drafting Supervisor",role:"Drafting Supervisor",     color:"#ffe4e6",border:"#fb7185",badgeColor:"#be123c"},
+  {id:"dr1",name:"Drafter 1",          role:"Drafter",                 color:"#ffedd5",border:"#fb923c",badgeColor:"#c2410c"},
+  {id:"dr2",name:"Drafter 2",          role:"Drafter",                 color:"#ecfccb",border:"#a3e635",badgeColor:"#3f6212"},
+  {id:"dr3",name:"Drafter 3",          role:"Drafter",                 color:"#cffafe",border:"#22d3ee",badgeColor:"#0e7490"},
+];
+
+const STATUS={todo:"To Do",inprogress:"In Progress",done:"Done",overdue:"Carried Over"};
+const STATUS_ICONS={todo:"○",inprogress:"◑",done:"●",overdue:"⚠"};
+const todayStr=()=>new Date().toISOString().split("T")[0];
+const fmtDate=d=>d?new Date(d+"T00:00:00").toLocaleDateString("en-US",{month:"short",day:"numeric",year:"numeric"}):"—";
+
+const PRI=({p})=>{
+  const s=p==="high"?{background:"#fee2e2",color:"#dc2626"}:p==="medium"?{background:"#fef9c3",color:"#a16207"}:{background:"#f3f4f6",color:"#6b7280"};
+  return <span style={{...s,fontSize:11,padding:"2px 7px",borderRadius:999,fontWeight:600,display:"inline-block"}}>{p}</span>;
+};
+const StatBadge=({s})=>{
+  const styles={todo:{background:"#f3f4f6",color:"#374151"},inprogress:{background:"#dbeafe",color:"#1d4ed8"},done:{background:"#dcfce7",color:"#15803d"},overdue:{background:"#fee2e2",color:"#dc2626"}};
+  return <span style={{...styles[s],fontSize:11,padding:"2px 7px",borderRadius:999,fontWeight:600,display:"inline-block"}}>{STATUS_ICONS[s]} {STATUS[s]}</span>;
+};
+const lbl=(text)=><label style={{fontSize:12,color:"#6b7280",display:"block",marginBottom:4}}>{text}</label>;
+
+const blankTask=(mid="mgr")=>({memberId:mid,title:"",priority:"medium",dueDate:todayStr(),startDate:"",endDate:""});
+
+function App(){
+  const [tasks,setTasksRaw]=useState(()=>{try{return JSON.parse(localStorage.getItem("tlh_tasks")||"null")||[];}catch{return[];}});
+  const [team,setTeamRaw]=useState(()=>{try{return JSON.parse(localStorage.getItem("tlh_team")||"null")||DEFAULT_TEAM;}catch{return DEFAULT_TEAM;}});
+  const [view,setView]=useState("board");
+  const [showAdd,setShowAdd]=useState(false);
+  const [showTeamEdit,setShowTeamEdit]=useState(false);
+  const [teamDraft,setTeamDraft]=useState([]);
+  const [filterMember,setFilterMember]=useState("all");
+  const [checkinDate,setCheckinDate]=useState(todayStr());
+  const [editNoteId,setEditNoteId]=useState(null);
+  const [editNote,setEditNote]=useState("");
+  const [editTaskId,setEditTaskId]=useState(null);
+  const [editTaskVal,setEditTaskVal]=useState({});
+  const [newTask,setNewTask]=useState(blankTask());
+
+  const setTasks=v=>{const next=typeof v==="function"?v(tasks):v;setTasksRaw(next);localStorage.setItem("tlh_tasks",JSON.stringify(next));};
+  const setTeam=v=>{setTeamRaw(v);localStorage.setItem("tlh_team",JSON.stringify(v));};
+
+  const addTask=()=>{
+    if(!newTask.title.trim())return;
+    setTasks(t=>[...t,{...newTask,id:Date.now(),status:"todo",note:""}]);
+    setNewTask(blankTask(newTask.memberId));
+    setShowAdd(false);
+  };
+  const updateStatus=(id,s)=>setTasks(t=>t.map(tk=>tk.id===id?{...tk,status:s}:tk));
+  const deleteTask=id=>setTasks(t=>t.filter(tk=>tk.id!==id));
+  const saveNote=id=>{setTasks(t=>t.map(tk=>tk.id===id?{...tk,note:editNote}:tk));setEditNoteId(null);};
+  const saveTaskEdit=()=>{setTasks(t=>t.map(tk=>tk.id===editTaskId?{...tk,...editTaskVal}:tk));setEditTaskId(null);};
+  const runCheckin=()=>setTasks(t=>t.map(tk=>(tk.dueDate||tk.date)<checkinDate&&tk.status!=="done"?{...tk,status:"overdue"}:tk));
+
+  const visibleTasks=mid=>tasks.filter(t=>t.memberId===mid&&(filterMember==="all"||t.memberId===filterMember)).sort((a,b)=>{const p={high:0,medium:1,low:2};return(p[a.priority]-p[b.priority])||((a.dueDate||a.date||"").localeCompare(b.dueDate||b.date||""));});
+  const allVisible=filterMember==="all"?tasks:tasks.filter(t=>t.memberId===filterMember);
+  const stats={total:allVisible.length,done:allVisible.filter(t=>t.status==="done").length,overdue:allVisible.filter(t=>t.status==="overdue").length};
+
+  const smInput={border:"1px solid #d1d5db",borderRadius:6,padding:"4px 6px",fontSize:12,outline:"none"};
+  const navBtn=(label,v)=><button onClick={()=>setView(v)} style={{padding:"7px 16px",borderRadius:999,fontSize:13,fontWeight:500,border:"none",background:view===v?"#7c3aed":"#f3f4f6",color:view===v?"#fff":"#4b5563"}}>{label}</button>;
+
+  return(
+    <div style={{minHeight:"100vh",background:"#f8f9fa"}}>
+
+      {/* Header */}
+      <div style={{background:"#fff",borderBottom:"1px solid #e5e7eb",padding:"14px 20px",display:"flex",flexWrap:"wrap",alignItems:"center",justifyContent:"space-between",gap:10,boxShadow:"0 1px 3px rgba(0,0,0,.06)"}}>
+        <div>
+          <div style={{display:"flex",alignItems:"center",gap:8}}>
+            <span style={{fontSize:22}}>🏠</span>
+            <span style={{fontWeight:800,fontSize:19,color:"#1f2937"}}>True Legacy Homes</span>
+          </div>
+          <div style={{fontSize:12,color:"#6b7280",marginTop:2}}>Team Task Tracker · {fmtDate(todayStr())}</div>
+        </div>
+        <div style={{display:"flex",gap:6,flexWrap:"wrap"}}>
+          {navBtn("📋 Board","board")}
+          {navBtn("✅ Check-In","checkin")}
+          {navBtn("📅 History","history")}
+          <button onClick={()=>setShowAdd(true)} style={{padding:"7px 16px",borderRadius:999,fontSize:13,fontWeight:500,border:"none",background:"#22c55e",color:"#fff"}}>+ Assign Task</button>
+          <button onClick={()=>{setTeamDraft(team.map(m=>({...m})));setShowTeamEdit(true);}} style={{padding:"7px 16px",borderRadius:999,fontSize:13,fontWeight:500,border:"none",background:"#0ea5e9",color:"#fff"}}>👤 Edit Team</button>
+        </div>
+      </div>
+
+      {/* Stats */}
+      <div style={{background:"#fff",borderBottom:"1px solid #e5e7eb",padding:"8px 20px",display:"flex",flexWrap:"wrap",gap:16,alignItems:"center"}}>
+        <span style={{fontSize:13,color:"#6b7280"}}>Total: <b style={{color:"#1f2937"}}>{stats.total}</b></span>
+        <span style={{fontSize:13,color:"#15803d"}}>Done: <b>{stats.done}</b></span>
+        <span style={{fontSize:13,color:"#dc2626"}}>Carried Over: <b>{stats.overdue}</b></span>
+        <div style={{marginLeft:"auto",display:"flex",gap:8,alignItems:"center"}}>
+          <span style={{fontSize:13,color:"#6b7280"}}>Filter:</span>
+          <select value={filterMember} onChange={e=>setFilterMember(e.target.value)} style={{width:"auto",padding:"4px 8px",fontSize:13}}>
+            <option value="all">All Members</option>
+            {team.map(m=><option key={m.id} value={m.id}>{m.name}</option>)}
+          </select>
+        </div>
+      </div>
+
+      <div style={{padding:20}}>
+
+        {/* BOARD */}
+        {view==="board"&&(
+          <div style={{display:"grid",gridTemplateColumns:"repeat(auto-fill,minmax(230px,1fr))",gap:14}}>
+            {team.map(member=>{
+              const mt=visibleTasks(member.id);
+              return(
+                <div key={member.id} style={{background:member.color,border:`2px solid ${member.border}`,borderRadius:14,padding:14,display:"flex",flexDirection:"column",gap:10}}>
+                  <div style={{display:"flex",alignItems:"center",gap:8}}>
+                    <span style={{background:member.badgeColor,color:"#fff",fontSize:11,fontWeight:700,padding:"2px 8px",borderRadius:999}}>{member.role.split(" ").map(w=>w[0]).join("")}</span>
+                    <div>
+                      <div style={{fontWeight:700,fontSize:13,color:"#1f2937"}}>{member.name}</div>
+                      <div style={{fontSize:11,color:"#6b7280"}}>{member.role}</div>
+                    </div>
+                  </div>
+                  <div style={{fontSize:11,color:"#6b7280"}}>{mt.filter(t=>t.status!=="done").length} active · {mt.filter(t=>t.status==="done").length} done</div>
+                  {mt.length===0&&<p style={{fontSize:12,color:"#9ca3af",textAlign:"center",padding:"10px 0",fontStyle:"italic"}}>No tasks assigned</p>}
+                  {mt.map(task=>(
+                    <div key={task.id} style={{background:"#fff",borderRadius:10,padding:11,boxShadow:"0 1px 3px rgba(0,0,0,.06)",display:"flex",flexDirection:"column",gap:6}}>
+                      {editTaskId===task.id?(
+                        <>
+                          <input value={editTaskVal.title} onChange={e=>setEditTaskVal(v=>({...v,title:e.target.value}))} style={{...smInput,fontWeight:600,width:"100%"}}/>
+                          <select value={editTaskVal.memberId} onChange={e=>setEditTaskVal(v=>({...v,memberId:e.target.value}))} style={{...smInput,width:"100%"}}>
+                            {team.map(m=><option key={m.id} value={m.id}>{m.name}</option>)}
+                          </select>
+                          <select value={editTaskVal.priority} onChange={e=>setEditTaskVal(v=>({...v,priority:e.target.value}))} style={{...smInput,width:"100%"}}>
+                            <option value="high">🔴 High</option><option value="medium">🟡 Medium</option><option value="low">🟢 Low</option>
+                          </select>
+                          <div style={{display:"grid",gridTemplateColumns:"1fr 1fr 1fr",gap:4}}>
+                            <div><div style={{fontSize:10,color:"#15803d",marginBottom:2}}>Start Date</div><input type="date" value={editTaskVal.startDate||""} onChange={e=>setEditTaskVal(v=>({...v,startDate:e.target.value}))} style={{...smInput,width:"100%"}}/></div>
+                            <div><div style={{fontSize:10,color:"#a16207",marginBottom:2}}>End Date</div><input type="date" value={editTaskVal.endDate||""} onChange={e=>setEditTaskVal(v=>({...v,endDate:e.target.value}))} style={{...smInput,width:"100%"}}/></div>
+                            <div><div style={{fontSize:10,color:"#dc2626",marginBottom:2}}>Due Date</div><input type="date" value={editTaskVal.dueDate||""} onChange={e=>setEditTaskVal(v=>({...v,dueDate:e.target.value}))} style={{...smInput,width:"100%"}}/></div>
+                          </div>
+                          <div style={{display:"flex",gap:4}}>
+                            <button onClick={saveTaskEdit} style={{flex:1,fontSize:12,padding:"5px 0",background:"#7c3aed",color:"#fff",border:"none",borderRadius:6}}>Save</button>
+                            <button onClick={()=>setEditTaskId(null)} style={{flex:1,fontSize:12,padding:"5px 0",background:"#f3f4f6",color:"#374151",border:"none",borderRadius:6}}>Cancel</button>
+                          </div>
+                        </>
+                      ):(
+                        <>
+                          <div style={{display:"flex",justifyContent:"space-between",gap:4}}>
+                            <span style={{fontSize:13,fontWeight:600,color:task.status==="done"?"#9ca3af":"#1f2937",textDecoration:task.status==="done"?"line-through":"none",flex:1}}>{task.title}</span>
+                            <div style={{display:"flex",gap:4,flexShrink:0}}>
+                              <button onClick={()=>{setEditTaskId(task.id);setEditTaskVal({title:task.title,priority:task.priority,dueDate:task.dueDate||task.date||"",startDate:task.startDate||"",endDate:task.endDate||"",memberId:task.memberId});}} style={{background:"none",border:"none",color:"#d1d5db",fontSize:13}} title="Edit">✏</button>
+                              <button onClick={()=>deleteTask(task.id)} style={{background:"none",border:"none",color:"#d1d5db",fontSize:13}} title="Delete">✕</button>
+                            </div>
+                          </div>
+                          <PRI p={task.priority}/>
+                          <div style={{display:"grid",gridTemplateColumns:"1fr 1fr 1fr",gap:4}}>
+                            <div style={{textAlign:"center",background:"#f0fdf4",borderRadius:6,padding:"3px 4px"}}>
+                              <div style={{fontSize:9,color:"#15803d",fontWeight:700,textTransform:"uppercase"}}>Start</div>
+                              <div style={{fontSize:10,color:"#374151",fontWeight:600}}>{fmtDate(task.startDate)}</div>
+                            </div>
+                            <div style={{textAlign:"center",background:"#fef9c3",borderRadius:6,padding:"3px 4px"}}>
+                              <div style={{fontSize:9,color:"#a16207",fontWeight:700,textTransform:"uppercase"}}>End</div>
+                              <div style={{fontSize:10,color:"#374151",fontWeight:600}}>{fmtDate(task.endDate)}</div>
+                            </div>
+                            <div style={{textAlign:"center",background:"#fee2e2",borderRadius:6,padding:"3px 4px"}}>
+                              <div style={{fontSize:9,color:"#dc2626",fontWeight:700,textTransform:"uppercase"}}>Due</div>
+                              <div style={{fontSize:10,color:"#374151",fontWeight:600}}>{fmtDate(task.dueDate||task.date)}</div>
+                            </div>
+                          </div>
+                          {task.note&&<p style={{fontSize:11,color:"#6b7280",fontStyle:"italic",margin:0}}>💬 {task.note}</p>}
+                          <div style={{display:"flex",gap:4,flexWrap:"wrap"}}>
+                            {["todo","inprogress","done"].map(s=>{
+                              const active=task.status===s;
+                              const sc={todo:{bg:"#f3f4f6",c:"#374151"},inprogress:{bg:"#dbeafe",c:"#1d4ed8"},done:{bg:"#dcfce7",c:"#15803d"}};
+                              return <button key={s} onClick={()=>updateStatus(task.id,s)} style={{padding:"2px 8px",borderRadius:999,fontSize:11,border:active?"none":"1px solid #e5e7eb",background:active?sc[s].bg:"#fff",color:active?sc[s].c:"#9ca3af",fontWeight:active?700:400}}>{STATUS_ICONS[s]} {STATUS[s]}</button>;
+                            })}
+                          </div>
+                          {editNoteId===task.id?(
+                            <div style={{display:"flex",gap:4}}>
+                              <input value={editNote} onChange={e=>setEditNote(e.target.value)} placeholder="Add note..." style={{...smInput,flex:1}}/>
+                              <button onClick={()=>saveNote(task.id)} style={{fontSize:11,padding:"3px 8px",borderRadius:5,border:"none",background:"#7c3aed",color:"#fff"}}>Save</button>
+                            </div>
+                          ):(
+                            <button onClick={()=>{setEditNoteId(task.id);setEditNote(task.note||"");}} style={{background:"none",border:"none",fontSize:11,color:"#9ca3af",textAlign:"left",padding:0}}>✏ note</button>
+                          )}
+                        </>
+                      )}
+                    </div>
+                  ))}
+                  <button onClick={()=>{setNewTask(blankTask(member.id));setShowAdd(true);}} style={{fontSize:12,textAlign:"center",padding:"7px",borderRadius:8,border:"2px dashed #d1d5db",color:"#9ca3af",background:"none",width:"100%"}}>+ Add task</button>
+                </div>
+              );
+            })}
+          </div>
+        )}
+
+        {/* CHECK-IN */}
+        {view==="checkin"&&(
+          <div style={{maxWidth:720,margin:"0 auto"}}>
+            <div style={{background:"#fff",borderRadius:14,border:"1px solid #e5e7eb",padding:22,marginBottom:14,boxShadow:"0 1px 3px rgba(0,0,0,.06)"}}>
+              <div style={{fontWeight:700,fontSize:17,marginBottom:4}}>✅ Daily Check-In</div>
+              <div style={{fontSize:13,color:"#6b7280",marginBottom:14}}>Incomplete tasks past their due date will be flagged as Carried Over.</div>
+              <div style={{display:"flex",gap:10,flexWrap:"wrap",alignItems:"flex-end"}}>
+                <div><label style={{fontSize:12,color:"#6b7280",display:"block",marginBottom:4}}>Check-in Date</label>
+                  <input type="date" value={checkinDate} onChange={e=>setCheckinDate(e.target.value)} style={{width:"auto"}}/>
+                </div>
+                <button onClick={runCheckin} style={{padding:"8px 20px",borderRadius:8,fontSize:13,fontWeight:600,border:"none",background:"#7c3aed",color:"#fff"}}>Run Check-In</button>
+              </div>
+            </div>
+            {team.map(member=>{
+              const mTasks=tasks.filter(t=>t.memberId===member.id);
+              if(!mTasks.length)return null;
+              return(
+                <div key={member.id} style={{background:"#fff",borderRadius:14,border:"1px solid #e5e7eb",padding:14,marginBottom:10}}>
+                  <div style={{fontWeight:600,color:"#374151",marginBottom:8}}>{member.name} <span style={{fontSize:12,fontWeight:400,color:"#9ca3af"}}>· {member.role}</span></div>
+                  {mTasks.map(task=>(
+                    <div key={task.id} style={{display:"flex",alignItems:"center",gap:8,padding:"8px 10px",borderRadius:8,background:"#f9fafb",border:"1px solid #e5e7eb",marginBottom:6,flexWrap:"wrap"}}>
+                      <select value={task.status} onChange={e=>updateStatus(task.id,e.target.value)} style={{width:"auto",fontSize:12}}>
+                        {Object.entries(STATUS).map(([k,v])=><option key={k} value={k}>{STATUS_ICONS[k]} {v}</option>)}
+                      </select>
+                      <span style={{flex:1,fontSize:13,color:task.status==="done"?"#9ca3af":"#374151",textDecoration:task.status==="done"?"line-through":"none"}}>{task.title}</span>
+                      <span style={{fontSize:11,color:"#15803d"}}>▶ {fmtDate(task.startDate)}</span>
+                      <span style={{fontSize:11,color:"#a16207"}}>⏹ {fmtDate(task.endDate)}</span>
+                      <span style={{fontSize:11,color:"#dc2626"}}>Due: {fmtDate(task.dueDate||task.date)}</span>
+                      <PRI p={task.priority}/>
+                    </div>
+                  ))}
+                </div>
+              );
+            })}
+          </div>
+        )}
+
+        {/* HISTORY */}
+        {view==="history"&&(
+          <div style={{maxWidth:1000,margin:"0 auto",background:"#fff",borderRadius:14,border:"1px solid #e5e7eb",overflow:"auto"}}>
+            <table style={{width:"100%",borderCollapse:"collapse",fontSize:13}}>
+              <thead>
+                <tr style={{background:"#f9fafb",borderBottom:"1px solid #e5e7eb"}}>
+                  {["Task","Assigned To","Start Date","End Date","Due Date","Status","Priority"].map(h=><th key={h} style={{padding:"10px 14px",textAlign:"left",color:"#374151",fontWeight:600,whiteSpace:"nowrap"}}>{h}</th>)}
+                </tr>
+              </thead>
+              <tbody>
+                {[...tasks].sort((a,b)=>(b.dueDate||b.date||"").localeCompare(a.dueDate||a.date||"")).map((task,i)=>{
+                  const m=team.find(x=>x.id===task.memberId);
+                  return(
+                    <tr key={task.id} style={{borderBottom:"1px solid #f3f4f6",background:i%2===0?"#fff":"#fafafa"}}>
+                      <td style={{padding:"10px 14px"}}>
+                        <div style={{color:task.status==="done"?"#9ca3af":"#1f2937",textDecoration:task.status==="done"?"line-through":"none"}}>{task.title}</div>
+                        {task.note&&<div style={{fontSize:11,color:"#9ca3af",fontStyle:"italic"}}>💬 {task.note}</div>}
+                      </td>
+                      <td style={{padding:"10px 14px"}}><span style={{background:m?.badgeColor,color:"#fff",fontSize:11,padding:"2px 8px",borderRadius:999,fontWeight:600,whiteSpace:"nowrap"}}>{m?.name}</span></td>
+                      <td style={{padding:"10px 14px",color:"#15803d",fontSize:12,whiteSpace:"nowrap"}}>{fmtDate(task.startDate)}</td>
+                      <td style={{padding:"10px 14px",color:"#a16207",fontSize:12,whiteSpace:"nowrap"}}>{fmtDate(task.endDate)}</td>
+                      <td style={{padding:"10px 14px",color:"#dc2626",fontSize:12,whiteSpace:"nowrap"}}>{fmtDate(task.dueDate||task.date)}</td>
+                      <td style={{padding:"10px 14px"}}><StatBadge s={task.status}/></td>
+                      <td style={{padding:"10px 14px"}}><PRI p={task.priority}/></td>
+                    </tr>
+                  );
+                })}
+              </tbody>
+            </table>
+            {tasks.length===0&&<p style={{textAlign:"center",color:"#9ca3af",padding:40}}>No tasks yet.</p>}
+          </div>
+        )}
+      </div>
+
+      {/* ASSIGN MODAL */}
+      {showAdd&&(
+        <div style={{position:"fixed",inset:0,background:"rgba(0,0,0,.4)",display:"flex",alignItems:"center",justifyContent:"center",zIndex:50,padding:16}}>
+          <div style={{background:"#fff",borderRadius:20,padding:24,width:"100%",maxWidth:460,maxHeight:"90vh",overflowY:"auto",boxShadow:"0 20px 60px rgba(0,0,0,.2)"}}>
+            <div style={{fontWeight:700,fontSize:18,color:"#1f2937",marginBottom:14}}>Assign Task</div>
+            {lbl("Assign To")}
+            <select value={newTask.memberId} onChange={e=>setNewTask(n=>({...n,memberId:e.target.value}))} style={{marginBottom:10}}>
+              {team.map(m=><option key={m.id} value={m.id}>{m.name} – {m.role}</option>)}
+            </select>
+            {lbl("Task Description")}
+            <input value={newTask.title} onChange={e=>setNewTask(n=>({...n,title:e.target.value}))} onKeyDown={e=>e.key==="Enter"&&addTask()} placeholder="Describe the task…" style={{marginBottom:10}}/>
+            {lbl("Priority")}
+            <select value={newTask.priority} onChange={e=>setNewTask(n=>({...n,priority:e.target.value}))} style={{marginBottom:10}}>
+              <option value="high">🔴 High</option><option value="medium">🟡 Medium</option><option value="low">🟢 Low</option>
+            </select>
+            <div style={{display:"grid",gridTemplateColumns:"1fr 1fr 1fr",gap:10,marginBottom:10}}>
+              <div>{lbl("📅 Start Date")}<input type="date" value={newTask.startDate} onChange={e=>setNewTask(n=>({...n,startDate:e.target.value}))}/></div>
+              <div>{lbl("📅 End Date")}<input type="date" value={newTask.endDate} onChange={e=>setNewTask(n=>({...n,endDate:e.target.value}))}/></div>
+              <div>{lbl("🔴 Due Date")}<input type="date" value={newTask.dueDate} onChange={e=>setNewTask(n=>({...n,dueDate:e.target.value}))}/></div>
+            </div>
+            <div style={{display:"flex",gap:8,marginTop:6}}>
+              <button onClick={addTask} disabled={!newTask.title.trim()} style={{flex:1,padding:"10px 0",background:"#7c3aed",color:"#fff",border:"none",borderRadius:10,fontWeight:600,opacity:newTask.title.trim()?1:.4}}>Assign Task</button>
+              <button onClick={()=>{setShowAdd(false);setNewTask(blankTask());}} style={{flex:1,padding:"10px 0",background:"#f3f4f6",color:"#4b5563",border:"none",borderRadius:10,fontWeight:600}}>Cancel</button>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* EDIT TEAM MODAL */}
+      {showTeamEdit&&(
+        <div style={{position:"fixed",inset:0,background:"rgba(0,0,0,.4)",display:"flex",alignItems:"center",justifyContent:"center",zIndex:50,padding:16}}>
+          <div style={{background:"#fff",borderRadius:20,padding:24,width:"100%",maxWidth:500,maxHeight:"90vh",overflowY:"auto",boxShadow:"0 20px 60px rgba(0,0,0,.2)"}}>
+            <div style={{fontWeight:700,fontSize:18,color:"#1f2937",marginBottom:6}}>👤 Edit Team Members</div>
+            <div style={{fontSize:13,color:"#6b7280",marginBottom:16}}>Update names and roles for each team member.</div>
+            <div style={{display:"flex",flexDirection:"column",gap:10}}>
+              {teamDraft.map((m,i)=>(
+                <div key={m.id} style={{display:"flex",gap:8,alignItems:"center",background:"#f9fafb",borderRadius:10,padding:"10px 12px",borderLeft:`4px solid ${m.badgeColor}`}}>
+                  <div style={{flex:1,display:"flex",gap:8,flexWrap:"wrap"}}>
+                    <input value={m.name} onChange={e=>{const d=[...teamDraft];d[i]={...d[i],name:e.target.value};setTeamDraft(d);}} placeholder="Name" style={{flex:1,minWidth:110,fontSize:13,padding:"5px 8px",borderRadius:6,border:"1px solid #d1d5db"}}/>
+                    <input value={m.role} onChange={e=>{const d=[...teamDraft];d[i]={...d[i],role:e.target.value};setTeamDraft(d);}} placeholder="Role" style={{flex:1,minWidth:130,fontSize:13,padding:"5px 8px",borderRadius:6,border:"1px solid #d1d5db"}}/>
+                  </div>
+                </div>
+              ))}
+            </div>
+            <div style={{display:"flex",gap:8,marginTop:18}}>
+              <button onClick={()=>{setTeam(teamDraft);setShowTeamEdit(false);}} style={{flex:1,padding:"10px 0",background:"#7c3aed",color:"#fff",border:"none",borderRadius:10,fontWeight:600}}>Save Changes</button>
+              <button onClick={()=>setShowTeamEdit(false)} style={{flex:1,padding:"10px 0",background:"#f3f4f6",color:"#4b5563",border:"none",borderRadius:10,fontWeight:600}}>Cancel</button>
+            </div>
+          </div>
+        </div>
+      )}
+    </div>
+  );
+}
+ReactDOM.createRoot(document.getElementById("root")).render(<App/>);
+</script>
+</body>
+</html>
